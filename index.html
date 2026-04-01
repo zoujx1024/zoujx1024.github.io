@@ -11,14 +11,18 @@
         <!-- 头部 -->
         <header class="bg-blue-600 text-white p-4 sticky top-0 z-10">
             <h1 class="text-xl font-bold">权益核销管理系统</h1>
-            <p class="text-sm opacity-90">  </p>
+            <a href="https://qr61.cn/o30fks/qnmbKiv?lid=dljsaccsvyhtct0ag&rlid=dljsaccsvyhtct0ag" class="text-sm opacity-90">公告及俱乐部地址(点击一下)</a>
         </header>
 
         <!-- 内容区 -->
-        <main class="p-3 pb-16">
+        <main class="p-3 pb-24">
             <!-- 新建分类按钮 -->
-            <button onclick="addCategory()" class="w-full mb-4 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700">
+            <button onclick="addCategory()" class="w-full mb-3 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700">
                 + 新建分类
+            </button>
+            <!-- 主页面全局一键还原 -->
+            <button id="globalRestoreBtn" onclick="globalOnekeyRestoreAllDone()" class="w-full mb-4 py-2 bg-orange-500 text-white rounded-lg font-semibold hover:bg-orange-600">
+                一键还原所有已完毕权益到未激活
             </button>
             <!-- 分类列表 -->
             <div id="categoryList"></div>
@@ -41,8 +45,13 @@
                 </div>
             </div>
             <div class="p-3">
-                <div id="tabContent" class="mb-20"></div>
-                <div id="batchBtn" class="fixed bottom-5 w-[calc(100%-2.5rem)] max-w-[29rem] hidden">
+                <div id="tabContent" class="mb-24"></div>
+                <!-- 一键还原单个产品所有已完毕 -->
+                <div id="onekeyRestoreBtn" class="fixed bottom-[4.5rem] w-[calc(100%-2.5rem)] max-w-[29rem] hidden">
+                    <button id="onekeyActionBtn" class="w-full bg-orange-500 text-white py-2 rounded-lg font-semibold" onclick="onekeyRestoreAllDone()">一键还原当前产品所有已完毕</button>
+                </div>
+                <!-- 批量操作按钮 -->
+                <div id="batchBtn" class="fixed bottom-1 w-[calc(100%-2.5rem)] max-w-[29rem] hidden">
                     <button id="batchActionBtn" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold" onclick="batchAction()"></button>
                 </div>
             </div>
@@ -107,6 +116,34 @@ function getAllProductId() {
         cat.products.forEach(p => ids.push(p.id));
     });
     return ids;
+}
+
+// 主页面全局一键还原所有已完毕
+function globalOnekeyRestoreAllDone() {
+    // 统计总共有多少已完毕权益
+    let totalDone = 0;
+    appData.categories.forEach(cat => {
+        cat.products.forEach(p => {
+            totalDone += p.done.length;
+        });
+    });
+    if(totalDone === 0) {
+        alert('当前没有任何已完毕的权益可还原');
+        return;
+    }
+    if(!confirm(`确认要一键还原所有分类下共 ${totalDone} 个已完毕权益到未激活吗？此操作不可撤销`)) return;
+
+    // 遍历所有产品还原
+    appData.categories.forEach(cat => {
+        cat.products.forEach(p => {
+            p.unactivated.push(...p.done);
+            p.done = [];
+        });
+    });
+
+    saveData();
+    renderCategoryList();
+    alert(`全局还原完成！共还原 ${totalDone} 个权益到未激活`);
 }
 
 // 新建分类
@@ -188,6 +225,27 @@ function editProductName(catIndex, productId, e) {
     product.name = newName.trim();
     saveData();
     renderCategoryList();
+}
+
+// 单个产品一键还原所有已完毕
+function onekeyRestoreAllDone() {
+    if(currentProduct.done.length === 0) {
+        alert('当前没有已完毕的权益可还原');
+        return;
+    }
+    if(!confirm(`确认要一键还原当前产品所有 ${currentProduct.done.length} 个已完毕权益到未激活吗？`)) return;
+
+    // 把所有完毕的序号移到未激活
+    currentProduct.unactivated.push(...currentProduct.done);
+    // 清空完毕列表
+    currentProduct.done = [];
+
+    // 保存更新
+    saveData();
+    updateCount();
+    renderTabContent();
+    renderCategoryList();
+    alert('一键还原完成！所有已完毕权益已退回未激活列表');
 }
 
 // 渲染分类列表
@@ -279,10 +337,18 @@ function switchTab(el) {
 function renderTabContent() {
     const container = document.getElementById('tabContent');
     const list = currentProduct[currentTab];
+    const onekeyBtn = document.getElementById('onekeyRestoreBtn');
     const batchBtn = document.getElementById('batchBtn');
     const actionBtn = document.getElementById('batchActionBtn');
 
-    // 根据当前标签设置按钮文字
+    // 控制一键还原按钮显示：只有在完毕tab且有数据才显示
+    if(currentTab === 'done' && currentProduct.done.length > 0) {
+        onekeyBtn.classList.remove('hidden');
+    } else {
+        onekeyBtn.classList.add('hidden');
+    }
+
+    // 控制批量按钮显示
     if(list.length > 0) {
         batchBtn.classList.remove('hidden');
         if(currentTab === 'unactivated') {
@@ -292,7 +358,7 @@ function renderTabContent() {
             actionBtn.textContent = '批量核销选中项';
             actionBtn.className = 'w-full bg-blue-600 text-white py-3 rounded-lg font-semibold';
         } else if(currentTab === 'done') {
-            actionBtn.textContent = '批量复原到未激活';
+            actionBtn.textContent = '批量复原选中项到未激活';
             actionBtn.className = 'w-full bg-orange-500 text-white py-3 rounded-lg font-semibold';
         }
     } else {
